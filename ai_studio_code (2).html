@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快速穴位系統 - 三合一版</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #27ae60;
+            --blue: #2980b9;
+            --orange: #e67e22;
+            --bg: #f0f2f5;
+            --white: #ffffff;
+        }
+        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background-color: var(--bg); margin: 0; padding: 15px; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        
+        .nav-tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+        .tab-btn { padding: 12px 25px; border: none; background: #ddd; cursor: pointer; border-radius: 8px 8px 0 0; font-size: 16px; font-weight: bold; }
+        .tab-btn.active { background: var(--primary); color: white; }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* 第一頁：生成器 */
+        .main-card { background: var(--white); padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }
+        .btn-group { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        
+        .gen-btn { flex: 1; min-width: 250px; max-width: 350px; padding: 18px; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn-normal { background: var(--blue); }
+        .btn-back { background: var(--primary); }
+        .btn-eye { background: var(--orange); }
+        .gen-btn:active { transform: scale(0.96); }
+
+        .copy-msg { color: var(--accent); font-weight: bold; height: 24px; margin: 15px 0; opacity: 0; transition: 0.3s; }
+        
+        .result-box { text-align: left; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .res-item { background: #f8f9fa; padding: 15px; border-radius: 12px; border-top: 5px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .res-item strong { display: block; color: var(--primary); font-size: 1em; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .res-points { color: #d35400; font-size: 1.1em; font-weight: bold; }
+
+        /* 第二頁：管理資料庫 */
+        .db-scroll-wrapper { overflow-x: auto; padding-bottom: 20px; }
+        .db-grid { display: flex; gap: 10px; min-width: 1500px; align-items: start; }
+        .db-col { background: var(--white); border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column; height: 70vh; width: 220px; flex-shrink: 0; }
+        .db-col-header { background: var(--primary); color: white; padding: 10px; text-align: center; font-weight: bold; }
+        .db-list { flex: 1; overflow-y: auto; padding: 8px; background: #fff; }
+        .db-item { display: flex; align-items: center; gap: 5px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+        .db-item input { width: 42px; padding: 3px; border: 1px solid #ccc; border-radius: 4px; text-align: center; font-size: 12px; }
+        .btn-del { color: #e74c3c; cursor: pointer; border: none; background: none; }
+        .add-tool { background: #f8f9fa; padding: 10px; border-top: 1px solid #ddd; display: flex; flex-direction: column; gap: 5px; }
+        .btn-add { background: var(--accent); color: white; border: none; padding: 6px; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchPage('page-run')">快速穴位生成</button>
+        <button class="tab-btn" onclick="switchPage('page-db')">穴位資料庫管理</button>
+    </div>
+
+    <!-- 頁面 1: 生成器 -->
+    <div id="page-run" class="page active">
+        <div class="main-card">
+            <div class="btn-group">
+                <button class="gen-btn btn-normal" onclick="generateAndCopy('normal')">1. 快速穴位 (頭+四肢)</button>
+                <button class="gen-btn btn-back" onclick="generateAndCopy('back')">2. 快速背部 (背+四肢)</button>
+                <button class="gen-btn btn-eye" onclick="generateAndCopy('eye')">3. 快速眼周 (眼+四肢)</button>
+            </div>
+            <div id="copy-status" class="copy-msg">✓ 處方已生成並自動複製！</div>
+            
+            <div id="display-results" class="result-box">
+                <!-- 結果顯示 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 頁面 2: 管理資料庫 -->
+    <div id="page-db" class="page">
+        <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <p style="margin:0; color: #666; font-size: 14px;">* 調整「基礎權重」可影響隨機抽中的機率（數值越高機率越大）。</p>
+            <button onclick="resetToDefault()" style="padding: 6px 12px; cursor: pointer;">恢復預設資料</button>
+        </div>
+        <div class="db-scroll-wrapper">
+            <div class="db-grid" id="db-container"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const regionNames = {
+        head: "頭部穴位",
+        eye: "眼部穴位",
+        lu: "左上肢穴位",
+        ru: "右上肢穴位",
+        ll: "左下肢穴位",
+        rl: "右下肢穴位",
+        back: "腰背穴位"
+    };
+
+    // 原始清單
+    const rawData = {
+        head: ["百會", "通天", "神庭", "本神", "印堂"],
+        eye: ["攢竹", "魚腰", "晴明", "承泣", "瞳子髎"],
+        upper: ["太淵", "經渠", "尺澤", "大陵", "間使", "曲澤", "神門", "靈道", "少海", "三間", "陽溪", "曲池", "液門", "中渚", "支溝", "天井", "後溪", "陽谷", "小海", "列缺", "偏歷", "通裡", "支正", "內關", "外關", "合谷", "腕骨"],
+        lower: ["太白", "太衝", "太溪", "行間", "然谷", "商丘", "中封", "復溜", "陰陵泉", "曲泉", "陰谷", "內庭", "俠溪", "陷谷", "足臨泣", "束骨", "丘墟", "京骨", "解溪", "陽輔", "崑崙", "足三里", "陽陵泉", "委中", "豐隆", "公孫", "飛揚", "光明", "上巨虛", "下巨虛", "懸鐘", "金門", "照海"],
+        back: ["腎俞", "大腸俞", "環跳", "秩邊"]
+    };
+
+    function buildDefaultData() {
+        let data = [];
+        rawData.head.forEach(n => data.push({ name: n, region: 'head', base: 1.0 }));
+        rawData.eye.forEach(n => data.push({ name: n, region: 'eye', base: 1.0 }));
+        rawData.upper.forEach(n => data.push({ name: n, region: 'lu', base: 1.0 }));
+        rawData.upper.forEach(n => data.push({ name: n, region: 'ru', base: 1.0 }));
+        rawData.lower.forEach(n => data.push({ name: n, region: 'll', base: 1.0 }));
+        rawData.lower.forEach(n => data.push({ name: n, region: 'rl', base: 1.0 }));
+        rawData.back.forEach(n => data.push({ name: n, region: 'back', base: 1.0 }));
+        return data;
+    }
+
+    let points = JSON.parse(localStorage.getItem('acuDataV8')) || buildDefaultData();
+
+    function switchPage(id) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if (event) event.target.classList.add('active');
+        if(id === 'page-db') renderDatabase();
+    }
+
+    async function generateAndCopy(mode) {
+        // 定義三種模式下需要包含的部位
+        const config = {
+            normal: ['head', 'lu', 'ru', 'll', 'rl'],
+            back: ['back', 'lu', 'ru', 'll', 'rl'],
+            eye: ['eye', 'lu', 'ru', 'll', 'rl']
+        };
+
+        const targetRegions = config[mode];
+        let fullText = "";
+        let displayHtml = "";
+
+        targetRegions.forEach(regId => {
+            let pool = points.filter(p => p.region === regId).map(p => ({
+                name: p.name,
+                val: Math.random() * p.base
+            }));
+            
+            pool.sort((a, b) => b.val - a.val);
+            const top3 = pool.slice(0, 3).map(p => p.name);
+            const pointsString = top3.join('、');
+            
+            fullText += `${regionNames[regId]}：${pointsString}\n`;
+            displayHtml += `
+                <div class="res-item">
+                    <strong>${regionNames[regId]}</strong>
+                    <div class="res-points">${pointsString}</div>
+                </div>`;
+        });
+
+        document.getElementById('display-results').innerHTML = displayHtml;
+
+        try {
+            await navigator.clipboard.writeText(fullText.trim());
+            const msg = document.getElementById('copy-status');
+            msg.style.opacity = 1;
+            setTimeout(() => msg.style.opacity = 0, 2500);
+        } catch (err) { console.error("複製失敗", err); }
+    }
+
+    function renderDatabase() {
+        const container = document.getElementById('db-container');
+        container.innerHTML = "";
+        Object.keys(regionNames).forEach(regId => {
+            const col = document.createElement('div');
+            col.className = "db-col";
+            let listHtml = points.filter(p => p.region === regId).map((p) => {
+                const globalIdx = points.indexOf(p);
+                return `<div class="db-item">
+                    <span style="flex:1; font-size:13px;">${p.name}</span>
+                    <input type="number" value="${p.base}" step="0.1" onchange="updateWeight(${globalIdx}, this.value)">
+                    <button class="btn-del" onclick="deletePoint(${globalIdx})">×</button>
+                </div>`;
+            }).join('');
+            col.innerHTML = `<div class="db-col-header">${regionNames[regId]}</div>
+                <div class="db-list">${listHtml}</div>
+                <div class="add-tool">
+                    <input type="text" id="add-name-${regId}" placeholder="新增穴位">
+                    <button class="btn-add" onclick="addNewPoint('${regId}')">＋ 新增</button>
+                </div>`;
+            container.appendChild(col);
+        });
+    }
+
+    function updateWeight(idx, val) { points[idx].base = parseFloat(val) || 0; save(); }
+    function deletePoint(idx) { if(confirm("確定刪除？")) { points.splice(idx, 1); save(); renderDatabase(); } }
+    function addNewPoint(regId) {
+        const input = document.getElementById(`add-name-${regId}`);
+        if(!input.value) return;
+        points.push({ name: input.value, region: regId, base: 1.0 });
+        input.value = ""; save(); renderDatabase();
+    }
+    function resetToDefault() { if(confirm("確定重置清單？")) { points = buildDefaultData(); save(); renderDatabase(); } }
+    function save() { localStorage.setItem('acuDataV8', JSON.stringify(points)); }
+
+    window.onload = () => { if(points.length === 0) resetToDefault(); };
+</script>
+
+</body>
+</html>
